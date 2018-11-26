@@ -1,0 +1,7 @@
+ManifestFileVersion: 0
+CRC: 3806735387
+AssetBundleManifest:
+  AssetBundleInfos:
+    Info_0:
+      Name: assets.prefabs.coin.prefab.ab
+      Dependencies: {}
