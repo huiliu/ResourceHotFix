@@ -1,25 +1,34 @@
-﻿using System.IO;
-using System.Security.Cryptography;
-using System.Net;
-using UnityEngine;
-using System;
+﻿using System;
+using System.Collections;
+using System.IO;
 using ICSharpCode.SharpZipLib.Core;
 using ICSharpCode.SharpZipLib.Zip;
-using System.Text;
+using UnityEngine;
+using UnityEngine.Networking;
+
+using Version = System.Version;
 
 namespace Assets.Scripts.UpdateService
 {
+    public enum UpdateStatus
+    {
+        CheckRemoteVersion,
+        Download,
+        Finished,
+        Error,
+    }
+
     public class UpdateMgr
     {
         /// <summary>
         /// 平台
         /// </summary>
 #if UNITY_EDITOR
-        public const string CurrentPlatform = "windows";
+        public const string kCurrentPlatform = "windows";
 #elif UNITY_IOS
-        public const string CurrentPlatform = "ios";
+        public const string kCurrentPlatform = "ios";
 #elif UNITY_ANDROID
-        public const string CurrentPlatform = "android";
+        public const string kCurrentPlatform = "android";
 #endif
 
         /// <summary>
@@ -27,50 +36,73 @@ namespace Assets.Scripts.UpdateService
         /// </summary>
         public const string CurrentChannel = "wx";
 
-        public const string BaseURL = "http://makeappicon.com/";
-        private static string sAssetBundlePersistentPath = Application.persistentDataPath + "/AssetBundles/";
+        public const string kBaseURL = "http://makeappicon.online/";
+        public static readonly string sAssetBundlePersistentPath = Application.persistentDataPath + "/AssetBundles/";
 
+        public UpdateStatus UpdateStatus { get; private set; }
         public ResourceVersion CurrentResVersion { get; private set; }
         public UpdateMgr()
         {
             this.CurrentResVersion = new ResourceVersion();
         }
 
-        public void TryUpdate()
+        public IEnumerator TryUpdate()
         {
-            this.currentRemoteVersion = this.GetRemoteResVersion();
+            this.UpdateStatus = UpdateStatus.CheckRemoteVersion;
+            yield return this.GetRemoteResVersion();
+
             if (this.currentRemoteVersion == null)
             {
-                // 读取失败
-                return;
+                // 读取远程版本信息失败
+                this.UpdateStatus = UpdateStatus.Error;
             }
-
-            // 服务器资源不可降级
-            System.Diagnostics.Debug.Assert(this.currentRemoteVersion <= this.CurrentResVersion.Version);
-
-            if (this.currentRemoteVersion < this.CurrentResVersion.Version)
+            else if (this.currentRemoteVersion != null &&
+                this.currentRemoteVersion > this.CurrentResVersion.Version)
             {
-                // 需要更新
-                // TODO: start update resource
+                this.UpdateStatus = UpdateStatus.Download;
+
+                yield return this.DownLoadUpdatePackage();
+            }
+            else if (this.currentRemoteVersion != null &&
+                this.currentRemoteVersion == this.CurrentResVersion.Version)
+            {
+                this.UpdateStatus = UpdateStatus.Finished;
             }
         }
 
         private Version currentRemoteVersion;
-        private Version GetRemoteResVersion()
+        private IEnumerator GetRemoteResVersion()
         {
-            const string versionURL = BaseURL + CurrentPlatform + "/" + CurrentChannel + "/version";
-            var req = HttpWebRequest.Create(versionURL);
-            var rep = req.GetResponse();
-
-            var version = null as Version;
-            using (var sr = new StreamReader(rep.GetResponseStream()))
+            do
             {
-                var c = sr.ReadLine();
-                if (!string.IsNullOrEmpty(c))
-                    version = new Version(c);
-            }
+                var versionURL = kBaseURL + kCurrentPlatform + "/" + CurrentChannel + "/version";
+                var www = UnityWebRequest.Get(versionURL);
+                yield return www.SendWebRequest();
 
-            return version;
+                if (www.isHttpError ||
+                    www.isNetworkError ||
+                    www.downloadedBytes == 0)
+                {
+                    break;
+                }
+
+                var version = www.downloadHandler.data.ToAsciiString();
+                if (string.IsNullOrEmpty(version))
+                {
+
+                    break;
+                }
+
+                try
+                {
+                    this.currentRemoteVersion = new Version(version);
+                }
+                catch (Exception err)
+                {
+                    // 版本格式不正确
+                    break;
+                }
+            } while (false);
         }
 
         /// <summary>
@@ -85,91 +117,65 @@ namespace Assets.Scripts.UpdateService
         ///     3. 重复上面步骤直到本地版本也为1.0.5
         ///
         /// </summary>
-        public void DoUpdate()
+        private IEnumerator DownLoadUpdatePackage()
         {
             do
             {
-                var r = this.DownLoadUpdatePackage(this.CurrentResVersion.Version);
-                if (!r)
+                var url = kBaseURL + kCurrentPlatform + "/" + CurrentChannel + "/" + this.CurrentResVersion.Version.ToString();
+                var www = UnityWebRequest.Get(url + ".md5");
+                yield return www.SendWebRequest();
+
+                if (www.isHttpError ||
+                    www.isNetworkError ||
+                    www.downloadedBytes == 0)
                 {
-                    // 更新失败！
+                    // 下载错误
+                    this.UpdateStatus = UpdateStatus.Error;
                     break;
+                }
+
+                var md5Value = www.downloadHandler.data.ToAsciiString().Trim();
+                if (string.IsNullOrEmpty(md5Value))
+                {
+                    this.UpdateStatus = UpdateStatus.Error;
+                    break;
+                }
+
+                www = UnityWebRequest.Get(url + ".zip");
+                yield return www.SendWebRequest();
+
+                if (www.isHttpError ||
+                    www.isNetworkError ||
+                    www.downloadedBytes == 0)
+                {
+                    // 下载错误
+                    this.UpdateStatus = UpdateStatus.Error;
+                    break;
+                }
+
+                using (var ms = new MemoryStream(www.downloadHandler.data))
+                {
+                    var md5 = Utils.CalcStreamMD5(ms);
+                    if (string.Compare(md5Value, md5, true) != 0)
+                    {
+                        // MD5检验失败
+                        this.UpdateStatus = UpdateStatus.Error;
+                        break;
+                    }
+
+                    ms.Seek(0, SeekOrigin.Begin);
+                    this.UnzipFromStream(ms);
                 }
 
                 this.CurrentResVersion.ReloadVersion();
                 if (this.CurrentResVersion.Version == this.currentRemoteVersion)
                 {
                     // 本地版本与服务器版本一致
+                    this.UpdateStatus = UpdateStatus.Finished;
                     break;
                 }
-
-                /// Warning: 危险
             } while (true);
         }
-
-        private bool DownLoadUpdatePackage(Version version)
-        {
-            // Version.ToString()感觉是个隐患，如果返回值不同平台，不同版本不一样会是一个麻烦
-            string updateMd5Url = BaseURL + CurrentPlatform + "/" + CurrentChannel + "/" + version.ToString() + ".md5";
-            var hw = HttpWebRequest.Create(updateMd5Url);
-            var md5Vaule = null as string;
-            using(var sr = new StreamReader(hw.GetResponse().GetResponseStream()))
-            {
-                md5Vaule = sr.ReadLine().Trim();
-            }
-
-
-            string updateUrl = BaseURL + CurrentPlatform + "/" + CurrentChannel + "/" + version.ToString();
-            var httpclient = HttpWebRequest.Create(updateUrl);
-            var rep = httpclient.GetResponse();
-
-            using (var f = File.Create(Application.temporaryCachePath + "/update.zip"))
-            {
-                using (var s = rep.GetResponseStream())
-                {
-                    s.CopyTo(f);
-                }
-
-                var cmd5 = CalcStreamMD5(f);
-                if (string.Compare(md5Vaule, cmd5, true) != 0)
-                {
-                    // MD5检验失败
-                    return false;
-                }
-
-                f.Seek(0, SeekOrigin.Begin);
-                this.UnzipFromStream(f);
-            }
-
-            return true;
-        }
-
-        #region 计算MD5
-        // https://stackoverflow.com/questions/10520048/calculate-md5-checksum-for-a-file
-        // https://stackoverflow.com/questions/11454004/calculate-a-md5-hash-from-a-string
-        // https://docs.microsoft.com/en-us/dotnet/api/system.security.cryptography.md5?redirectedfrom=MSDN&view=netframework-4.7.2
-        private static StringBuilder hashsb = new StringBuilder(32);
-        private static string CalcStreamMD5(Stream s)
-        {
-            hashsb.Clear();
-
-            var md5 = MD5.Create();
-            var hash = md5.ComputeHash(s);
-            foreach (var bt in hash)
-                hashsb.Append(bt.ToString("x2"));
-
-            return hashsb.ToString();
-        }
-
-        private static string CalcStreamMD5Another(Stream s)
-        {
-            using (var md5 = MD5.Create())
-            {
-                var hash = md5.ComputeHash(s);
-                return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
-            }
-        }
-        #endregion
 
         private void UnzipFromStream(Stream stream)
         {

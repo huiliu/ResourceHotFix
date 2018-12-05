@@ -1,6 +1,8 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
+using Assets.Scripts.UpdateService;
 
 public class ResourceMgr
 {
@@ -12,6 +14,7 @@ public class ResourceMgr
     private bool useBundle = true;
     private static ResourceMgr instance = new ResourceMgr();
     public static ResourceMgr Instance { get { return instance; } }
+
 
     public void LoadPrefab(string name, Action<GameObject> cb)
     {
