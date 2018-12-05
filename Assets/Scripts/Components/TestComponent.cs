@@ -10,14 +10,17 @@ namespace Assets.Scripts.Components
         [SerializeField] private Text StatusText;
 
         private UpdateMgr UpdateMgr;
+        private IResourceMgr resourceMgr;
         private void Awake()
         {
             this.UpdateMgr = new UpdateMgr();
+            this.resourceMgr = new AssetBundleMgr();
+            this.resourceMgr.Init();
         }
 
         public void LoadAnimationPrefab()
         {
-            ResourceMgr.Instance.LoadPrefab("coin.prefab", go =>
+            resourceMgr.LoadPrefab("coin.prefab", go =>
             {
                 go.transform.SetParent(this.transform, false);
                 go.SetActive(true);

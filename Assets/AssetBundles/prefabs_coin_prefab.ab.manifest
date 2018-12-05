@@ -1,17 +1,15 @@
 ManifestFileVersion: 0
-CRC: 1511015890
+CRC: 2451938218
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: deff51ca51248280d33d2391c7930b9b
+    Hash: 1cfd024cacb1700773a0a2795361c578
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 5c0634cf018ac83f7455775d63a60542
+    Hash: 6e0a7397b2ccad544bd06e4a84088618
 HashAppended: 0
 ClassTypes:
 - Class: 1
-  Script: {instanceID: 0}
-- Class: 28
   Script: {instanceID: 0}
 - Class: 74
   Script: {instanceID: 0}
@@ -31,4 +29,5 @@ ClassTypes:
   Script: {instanceID: 0}
 Assets:
 - Assets/Prefabs/coin.prefab
-Dependencies: []
+Dependencies:
+- D:/liuhui/u3d/Resource/Assets/AssetBundles/textures_coin_gold_png.ab

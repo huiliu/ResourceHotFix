@@ -4,31 +4,44 @@ using UnityEditor;
 
 public class CreateAssetBundle
 {
+    const string kAssetBundlesExportDir = "Assets/AssetBundles";
 
     [MenuItem("Tool/Build AssetBundles")]
     static void BuildAllAssetBundles()
     {
-        BuildAllPrefabs();
-
-        if (!Directory.Exists(ResourceMgr.AssetBundleDirectory))
+        if (!Directory.Exists(kAssetBundlesExportDir))
         {
-            Directory.CreateDirectory(ResourceMgr.AssetBundleDirectory);
+            Directory.CreateDirectory(kAssetBundlesExportDir);
         }
-        BuildPipeline.BuildAssetBundles(ResourceMgr.AssetBundleDirectory, BuildAssetBundleOptions.None, BuildTarget.StandaloneWindows);
+
+        TagPrefabs();
+        TagTextures();
+        BuildPipeline.BuildAssetBundles(kAssetBundlesExportDir, BuildAssetBundleOptions.None, BuildTarget.StandaloneWindows);
     }
 
-    static void BuildAllPrefabs()
+    static void TagPrefabs()
     {
-        var prefabPath = "Assets/" + ResourceMgr.PrefabPath;
-        var dir = new DirectoryInfo(prefabPath);
+        var path = "Assets/" + ResourcePath.kPrefabPath;
+        var dir = new DirectoryInfo(path);
         foreach (var f in dir.GetFiles("*.prefab"))
         {
-            var rpath = prefabPath + f.Name;
-            var ai = AssetImporter.GetAtPath(rpath);
-            ai.SetAssetBundleNameAndVariant(rpath.Replace("/", "."), "ab");
+            var rpath = ResourcePath.kPrefabPath + f.Name;
+            var ai = AssetImporter.GetAtPath("Assets/" + ResourcePath.kPrefabPath + f.Name);
+            ai.SetAssetBundleNameAndVariant(rpath.Replace("/", "_").Replace(".", "_"), "ab");
             ai.SaveAndReimport();
         }
+    }
 
-        BuildPipeline.BuildAssetBundles(ResourceMgr.AssetBundleDirectory, BuildAssetBundleOptions.None, BuildTarget.StandaloneWindows);
+    static void TagTextures()
+    {
+        var path = "Assets/" + ResourcePath.kTexturePath;
+        var dir = new DirectoryInfo(path);
+        foreach (var f in dir.GetFiles("*.png"))
+        {
+            var rpath = ResourcePath.kTexturePath + f.Name;
+            var ai = AssetImporter.GetAtPath("Assets/" + ResourcePath.kTexturePath + f.Name);
+            ai.SetAssetBundleNameAndVariant(rpath.Replace("/", "_").Replace(".", "_"), "ab");
+            ai.SaveAndReimport();
+        }
     }
 }

@@ -1,30 +1,11 @@
 ﻿using System;
-using System.IO;
-using System.Collections.Generic;
 using UnityEngine;
-using Assets.Scripts.UpdateService;
 
-public class ResourceMgr
+public interface IResourceMgr
 {
-    public const string ScenePath = "Scenes/";
-    public const string PrefabPath = "Prefabs/";
-    public const string TexturePath = "Textures/";
-    public const string AssetBundleDirectory = "Assets/AssetBundles/";
+    void Init();
+    void Fini();
 
-    private bool useBundle = true;
-    private static ResourceMgr instance = new ResourceMgr();
-    public static ResourceMgr Instance { get { return instance; } }
-
-
-    public void LoadPrefab(string name, Action<GameObject> cb)
-    {
-        var path = "Assets/Prefabs/" + name + ".ab";
-        if (this.useBundle)
-        {
-            var ab = AssetBundle.LoadFromFile(AssetBundleDirectory + path.Replace("/", "."));
-            var go = ab.LoadAsset<GameObject>(name);
-
-            cb.Invoke(GameObject.Instantiate(go));
-        }
-    }
+    void LoadPrefab(string name, Action<GameObject> cb);
+    void LoadTexture(string name, Action<Sprite> cb);
 }

@@ -29,6 +29,8 @@ namespace Assets.Scripts.UpdateService
         public const string kCurrentPlatform = "ios";
 #elif UNITY_ANDROID
         public const string kCurrentPlatform = "android";
+#else
+        public const string kCurrentPlatform = "windows";
 #endif
 
         /// <summary>

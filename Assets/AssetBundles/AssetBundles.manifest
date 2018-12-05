@@ -1,7 +1,11 @@
 ManifestFileVersion: 0
-CRC: 3806735387
+CRC: 141477402
 AssetBundleManifest:
   AssetBundleInfos:
     Info_0:
-      Name: assets.prefabs.coin.prefab.ab
+      Name: textures_coin_gold_png.ab
       Dependencies: {}
+    Info_1:
+      Name: prefabs_coin_prefab.ab
+      Dependencies:
+        Dependency_0: textures_coin_gold_png.ab

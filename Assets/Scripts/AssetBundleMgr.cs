@@ -20,40 +20,67 @@ namespace Assets.Scripts
     }
 
     public class AssetBundleMgr
+        : IResourceMgr
     {
         public AssetBundleMgr()
         {
+        }
+        public void Init()
+        {
+            this.InitialUpdateList();
+        }
 
+        public void Fini()
+        {
         }
 
         private HashSet<string> updatedFiles;
+        /// <summary>
+        /// 记录所有已更新的资源
+        /// </summary>
         private void InitialUpdateList()
         {
             this.updatedFiles = new HashSet<string>();
             var dirInfo = new DirectoryInfo(UpdateMgr.sAssetBundlePersistentPath);
             foreach(var f in dirInfo.GetFiles("*.ab"))
             {
-                this.updatedFiles.Add(f.Name);
+                this.updatedFiles.Add(f.Name.TrimEnd('.', 'a', 'b'));
             }
         }
 
-        private readonly StringBuilder sbPath = new StringBuilder(256);
-        private string GetPrefabFileName(string name)
+        /// <summary>
+        /// 检查资源是否有更新
+        /// </summary>
+        /// <param name="name">ab资源名。</param>
+        /// <returns></returns>
+        private bool isUpdated(string name)
         {
-            this.sbPath.Clear();
-            this.sbPath.Append(ResourcePath.PrefabPath);
-            this.sbPath.Append(name);
-            this.sbPath.Append(".prefab");
-
-            return this.sbPath.ToString();
+            return this.updatedFiles.Contains(name);
         }
 
-        private string GetTextureFileName(string name)
+        private readonly StringBuilder sbPath = new StringBuilder(256);
+        private string GetResourceFullPath(string name, ResourceType type)
         {
             this.sbPath.Clear();
-            this.sbPath.Append(ResourcePath.TexturePath);
-            this.sbPath.Append(name);
-            this.sbPath.Append(".png");
+            var rname = ResourcePath.GetResourceFullPath(name, ResourceType.Prefab).Replace("/", "_").Replace(".", "_").ToLower();
+            if (this.isUpdated(rname))
+            {
+                this.sbPath.Append(Application.persistentDataPath);
+            }
+            else
+            {
+#if UNITY_EDITOR
+                this.sbPath.Append(Application.dataPath);
+#else
+                this.sbPath.Append(Application.streamingAssetsPath);
+#endif
+
+            }
+
+            this.sbPath.Append("/");
+            this.sbPath.Append(ResourcePath.kAssetBundlesPath);
+            this.sbPath.Append(rname);
+            this.sbPath.Append(".ab");
 
             return this.sbPath.ToString();
         }
@@ -68,12 +95,13 @@ namespace Assets.Scripts
                     break;
                 }
 
-                var path = UpdateMgr.sAssetBundlePersistentPath + "_prefab.ab";
+                var path = this.GetResourceFullPath(name, ResourceType.Prefab);
                 var assetbundle = AssetBundle.LoadFromFile(path);
                 if (assetbundle != null)
                 {
                     var manifest = assetbundle.LoadAsset<AssetBundleManifest>("AssetBundleManifest");
-                    this.LoadDependencies(manifest, name);
+                    if (manifest != null)
+                        this.LoadDependencies(manifest, name);
 
                     this.LoadedAssetBundles.Add(name, new LoadedAssetBundle(assetbundle));
                 }
@@ -101,6 +129,10 @@ namespace Assets.Scripts
                 if (assetBundle != null)
                     this.LoadedAssetBundles.Add(dep, new LoadedAssetBundle(assetBundle));
             }
+        }
+
+        public void LoadTexture(string name, Action<Sprite> cb)
+        {
         }
     }
 }

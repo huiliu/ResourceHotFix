@@ -4,35 +4,32 @@ using UnityEngine;
 using UnityEditor;
 using Object = UnityEngine.Object;
 using System.Text;
-using Assets.Scripts.UpdateService;
 
 namespace Assets.Scripts
 {
     public class EditorResourceMgr
+        : IResourceMgr
     {
         public EditorResourceMgr()
         {
+        }
 
+        public void Init()
+        {
+            this.LoadedResource = new Dictionary<string, Object>();
+        }
+
+        public void Fini()
+        {
         }
 
         private readonly StringBuilder sbPath = new StringBuilder(256);
-        private string GetPrefabFileName(string name)
+        private string GetResourceFullPath(string name, ResourceType type)
         {
             this.sbPath.Clear();
-            this.sbPath.Append(ResourcePath.PrefabPath);
-            this.sbPath.Append(name);
-            this.sbPath.Append(".prefab");
-
-            return this.sbPath.ToString();
-        }
-
-        private string GetTextureFileName(string name)
-        {
-            this.sbPath.Clear();
-            this.sbPath.Append(ResourcePath.TexturePath);
-            this.sbPath.Append(name);
-            this.sbPath.Append(".png");
-
+            this.sbPath.Append("Assets/");
+            var rpath = ResourcePath.GetResourceFullPath(name, type);
+            this.sbPath.Append(rpath);
             return this.sbPath.ToString();
         }
 
@@ -42,7 +39,7 @@ namespace Assets.Scripts
             var go = null as GameObject;
             do
             {
-                var path = this.GetPrefabFileName(name);
+                var path = this.GetResourceFullPath(name, ResourceType.Prefab);
                 var obj = null as Object;
                 if (this.LoadedResource.TryGetValue(path, out obj))
                 {
@@ -50,7 +47,9 @@ namespace Assets.Scripts
                     break;
                 }
 
+#if UNITY_EDITOR
                 go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+#endif
                 if (go == null)
                 {
                     break;
@@ -63,12 +62,12 @@ namespace Assets.Scripts
             cb.SafeInvoke(go);
         }
 
-        public void LoadSprite(string name, Action<Sprite> cb)
+        public void LoadTexture(string name, Action<Sprite> cb)
         {
             var go = null as Sprite;
             do
             {
-                var path = this.GetTextureFileName(name);
+                var path = this.GetResourceFullPath(name, ResourceType.Texture);
                 var obj = null as Object;
                 if (this.LoadedResource.TryGetValue(path, out obj))
                 {
@@ -76,7 +75,9 @@ namespace Assets.Scripts
                     break;
                 }
 
+#if UNITY_EDITOR
                 go = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+#endif
                 if (go == null)
                 {
                     break;
