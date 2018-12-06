@@ -16,6 +16,7 @@ namespace Assets.Scripts.Components
             this.UpdateMgr = new UpdateMgr();
             this.resourceMgr = new AssetBundleMgr();
             this.resourceMgr.Init();
+            this.UpdateResource();
         }
 
         public void LoadAnimationPrefab()
