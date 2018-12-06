@@ -28,6 +28,7 @@ namespace Assets.Scripts
         public void Init()
         {
             this.InitialUpdateList();
+            this.InitDependenciesData();
         }
 
         public void Fini()
@@ -44,7 +45,7 @@ namespace Assets.Scripts
             var dirInfo = new DirectoryInfo(UpdateMgr.sAssetBundlePersistentPath);
             foreach(var f in dirInfo.GetFiles("*.ab"))
             {
-                this.updatedFiles.Add(f.Name.TrimEnd('.', 'a', 'b'));
+                this.updatedFiles.Add(f.Name);
             }
         }
 
@@ -58,31 +59,45 @@ namespace Assets.Scripts
             return this.updatedFiles.Contains(name);
         }
 
-        private readonly StringBuilder sbPath = new StringBuilder(256);
-        private string GetResourceFullPath(string name, ResourceType type)
+        /// <summary>
+        /// 返回资源全路径
+        /// </summary>
+        /// <param name="name">ab资源名</param>
+        /// <returns></returns>
+        private string GetPathByUpdate(string name)
         {
-            this.sbPath.Clear();
-            var rname = ResourcePath.GetResourceFullPath(name, ResourceType.Prefab).Replace("/", "_").Replace(".", "_").ToLower();
-            if (this.isUpdated(rname))
+            string path;
+            if (this.isUpdated(name))
             {
-                this.sbPath.Append(Application.persistentDataPath);
+                path = Application.persistentDataPath;
             }
             else
             {
 #if UNITY_EDITOR
-                this.sbPath.Append(Application.dataPath);
+                path = Application.dataPath;
 #else
-                this.sbPath.Append(Application.streamingAssetsPath);
+                path = Application.streamingAssetsPath;
 #endif
-
             }
 
+            this.sbPath.Clear();
+            this.sbPath.Append(path);
             this.sbPath.Append("/");
             this.sbPath.Append(ResourcePath.kAssetBundlesPath);
-            this.sbPath.Append(rname);
-            this.sbPath.Append(".ab");
+            this.sbPath.Append(name);
 
             return this.sbPath.ToString();
+        }
+
+        private readonly StringBuilder sbPath = new StringBuilder(256);
+        private string GetResourceFullPath(string name, ResourceType type)
+        {
+            var rname = ResourcePath.GetResourceFullPath(name, ResourceType.Prefab)
+                            .Replace("/", "_")
+                            .Replace(".", "_")
+                            .ToLower() + ".ab";
+
+            return this.GetPathByUpdate(rname);
         }
 
         public void LoadPrefab(string name, Action<GameObject> cb)
@@ -99,11 +114,10 @@ namespace Assets.Scripts
                 var assetbundle = AssetBundle.LoadFromFile(path);
                 if (assetbundle != null)
                 {
-                    var manifest = assetbundle.LoadAsset<AssetBundleManifest>("AssetBundleManifest");
-                    if (manifest != null)
-                        this.LoadDependencies(manifest, name);
+                    this.LoadDependencies(Path.GetFileName(path));
 
-                    this.LoadedAssetBundles.Add(name, new LoadedAssetBundle(assetbundle));
+                    loadedAssetbundle = new LoadedAssetBundle(assetbundle);
+                    this.LoadedAssetBundles.Add(name, loadedAssetbundle);
                 }
             } while (false);
 
@@ -117,18 +131,27 @@ namespace Assets.Scripts
         }
 
         private Dictionary<string, LoadedAssetBundle> LoadedAssetBundles = new Dictionary<string, LoadedAssetBundle>();
-        public void LoadDependencies(AssetBundleManifest manifest, string assetBundleName)
+        public void LoadDependencies(string assetBundleName)
         {
-            var deps = manifest.GetAllDependencies(assetBundleName);
+            var deps = this.AssetBundleManifest.GetAllDependencies(assetBundleName);
             foreach(var dep in deps)
             {
                 if (this.LoadedAssetBundles.ContainsKey(dep))
                     continue;
 
-                var assetBundle = AssetBundle.LoadFromFile(Path.Combine(UpdateMgr.sAssetBundlePersistentPath, dep));
+                var path = this.GetPathByUpdate(dep);
+                var assetBundle = AssetBundle.LoadFromFile(path);
                 if (assetBundle != null)
                     this.LoadedAssetBundles.Add(dep, new LoadedAssetBundle(assetBundle));
             }
+        }
+
+        private static readonly string sManifestFileName = "AssetBundles";
+        private AssetBundleManifest AssetBundleManifest;
+        private void InitDependenciesData()
+        {
+            var assetbundle = AssetBundle.LoadFromFile(this.GetPathByUpdate(sManifestFileName));
+            this.AssetBundleManifest = assetbundle.LoadAsset<AssetBundleManifest>("AssetBundleManifest");
         }
 
         public void LoadTexture(string name, Action<Sprite> cb)
